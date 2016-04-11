@@ -7,6 +7,39 @@
 #include "mmu.h"
 #include "proc.h"
 
+int 
+sys_clone (void)
+{
+  //int clone(void *(*func) (void *), void *arg, void *stack);
+  int func;
+  int stack;
+  int arg;
+
+  if(argint(0, &func) < 0)
+    return -1;
+
+  if(argint(1, &arg) < 0)
+    return -1;
+
+  if(argint(2, &stack) < 0)
+    return -1;
+
+  //located in proc.c
+  return clone((void *)func, (void *) arg, (void *) stack);
+}
+
+int 
+sys_join(void)
+{
+  return 0;
+}
+
+void
+sys_texit(void)
+{
+
+}
+
 int
 sys_fork(void)
 {

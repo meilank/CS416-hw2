@@ -463,3 +463,110 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+/*
+clone(...) - This system call should behave as a lightweight version of fork(...). 
+In particular, the system call should create a new OS process (struct proc) that has 
+its own kernel stack and other structures, but shares the memory address space of 
+the parent. When a user calls clone(...), they should provide a function for the thread
+to run, a single pointer to an argument, as well as a one-page region of memory to be 
+used as a user stack. The clone(...) call should return the PID of the new thread to 
+the parent, and immediately start execution of the function func in the new thread’s context.
+
+int clone(void *(*func) (void *), void *arg, void *stack);
+*/
+
+int 
+clone(void *(*func) (void *), void *arg, void *stack)
+{
+  struct proc *p= allocproc();
+
+  /*
+    int i, pid;
+  struct proc *np;
+
+  // Allocate process.
+  if((np = allocproc()) == 0)
+    return -1;
+
+  // Copy process state from p.
+  if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
+    kfree(np->kstack);
+    np->kstack = 0;
+    np->state = UNUSED;
+    return -1;
+  }
+  np->sz = proc->sz;
+  np->parent = proc;
+  *np->tf = *proc->tf;
+
+  // Clear %eax so that fork returns 0 in the child.
+  np->tf->eax = 0;
+
+  for(i = 0; i < NOFILE; i++)
+    if(proc->ofile[i])
+      np->ofile[i] = filedup(proc->ofile[i]);
+  np->cwd = idup(proc->cwd);
+
+  safestrcpy(np->name, proc->name, sizeof(proc->name));
+ 
+  pid = np->pid;
+
+  // lock to force the compiler to emit the np->state write last.
+  acquire(&ptable.lock);
+  np->state = RUNNABLE;
+  release(&ptable.lock);
+  
+  return pid;
+  */
+
+
+  // if((p->pgdir = copyuvm(proc->pgdir, (uint)stack)) == 0){
+  //   kfree(p->kstack);
+  //   p->kstack = 0;
+  //   p->state = UNUSED;
+  //   return -1;
+  // }
+  p-> sz= (uint) stack;
+  p-> state= RUNNABLE;
+  p-> parent= proc;
+  p-> tf= proc-> tf; //set up trapframe so that it runs the function
+  p-> tf-> eax= 0;
+  p-> pgdir= (uint*)p-> pid;
+
+  //cprintf("%d\n", (int*)stack);
+
+  *((uint*)(p->tf->esp+(uint)stack)) = (uint)func; //stack+ stacksize
+  return p-> pid;
+  
+}
+
+/*
+join(...) - This system call should behave similar to wait(), and cause the caller to 
+sleep until the thread specified by the pid argument terminates. join(...) should return 0
+on success (negative number if an error), as well as copy the address of the thread’s user
+stack and the return value (passed to texit(...)) into the pointers provided as parameters.
+*/
+
+int 
+join(int pid, void **stack, void **retval)
+{
+  //have to go thru table and find the one with matching pid
+  // if (proc-> killed < 0)
+  // {
+  //   proc-> state= RUNNABLE;
+  // }
+  return 0;
+}
+
+void 
+texit(void *retval)
+{
+
+}
+
+
+
+
+
+
