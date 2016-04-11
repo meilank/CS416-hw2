@@ -9,6 +9,8 @@
 
 void *thread(void *arg)
 {
+	//printf(1, "inside function\n");
+
 	int i;
 	int counter;
 

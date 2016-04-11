@@ -102,3 +102,39 @@ sys_halt(void)
     outw(0xB004, 0x2000);
   return 0;
 }
+
+
+int
+sys_clone(void)
+{
+  void *func, *arg, *stack;
+
+  if(argptr(0, (void*)&func, sizeof(void*)) < 0)
+    return -1;
+
+  if(argptr(1, (void*)&arg, sizeof(void*)) < 0)
+    return -1;
+
+  if(argptr(2, (void*)&stack, sizeof(void*)) < 0)
+    return -1;
+
+  return clone(func, arg, stack);
+}
+
+int
+sys_join(void)
+{
+  return 0;
+}
+
+void
+sys_texit(void)
+{
+  void *retval;
+
+  if(argptr(0, (void*)&retval, sizeof(void*)) < 0)
+    return;
+
+  texit(retval);
+
+}

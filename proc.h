@@ -66,6 +66,11 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  void* stack;                 // We need to pass this back to the thread that uses join
+  void* retval;                // Also needs to be passed back, is set when a thread calls texit
+  int isThread;                // Can be used to determine if the calling process is a true process or a kernel thread
+
 };
 
 // Process memory is laid out contiguously, low addresses first:

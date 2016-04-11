@@ -463,3 +463,82 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+
+//similar to fork, except shares memory space of the parent, provided function goes into context of the new thread
+int
+clone(void *(*func) (void*), void *arg, void *stack)
+{
+
+  int i, pid;
+  struct proc *np;
+
+  // Allocate process.
+  if((np = allocproc()) == 0)
+    return -1;
+
+  np->pgdir = proc->pgdir;  //we need the same pgdir, not a copy that fork would make
+  np->sz = proc->sz;
+  np->parent = proc;
+  *np->tf = *proc->tf;
+
+  uint* sarg;
+
+  sarg = stack + 4096 - sizeof(void*);
+  *(uint*)sarg = (uint)arg;
+
+  np->tf->esp = (uint)stack + PGSIZE - sizeof(void*);
+  np->tf->ebp = np->tf->esp;
+  np->tf->eip = (uint) func;
+
+  // Clear %eax so that fork returns 0 in the child.
+  np->tf->eax = 0;
+
+  for(i = 0; i < NOFILE; i++)
+    if(proc->ofile[i])
+      np->ofile[i] = filedup(proc->ofile[i]);
+  np->cwd = idup(proc->cwd);
+
+  safestrcpy(np->name, proc->name, sizeof(proc->name));
+ 
+  np->stack = stack;
+  np->isThread = 1;
+  pid = np->pid;
+
+  // lock to force the compiler to emit the np->state write last.
+  acquire(&ptable.lock);
+  np->state = RUNNABLE;
+  release(&ptable.lock);
+  
+  return pid;
+
+  //return 0;
+}
+
+int
+join(int pid, void **stack, void **retval)
+{
+
+  /*
+      join needs to:
+
+          sleep until thread specified by pid terminates
+          copy stack ptr that was given to clone() into **stack argument
+          copy the return value (from texit) into **retval
+          return 0 on success, -1 on error
+
+      implementation:
+
+          go through the proc table looking for specified pid, check that it is a thread, check if it has exited
+          if zombie -> do clean up and store p->stack in *stack and p->retval (set by texit) in *retval
+          if found, but not zombie, sleep on found process?
+  */
+
+  return 0;
+}
+
+void
+texit(void *retval)
+{
+  
+}
