@@ -477,22 +477,26 @@ clone(void *(*func) (void*), void *arg, void *stack)
   if((np = allocproc()) == 0)
     return -1;
 
-  np->pgdir = proc->pgdir;  //we need the same pgdir, not a copy that fork would make
+  np->pgdir = proc->pgdir;  // We need the same pgdir, not a copy (fork makes a copy)
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
 
-  uint* sarg;
+  // Stack addresses grow down, so we need to move the stack pointer to the other end, as well as leave room for our argument and placeholder return address
 
-  sarg = stack + 4096 - sizeof(void*);
-  *(uint*)sarg = (uint)arg;
+  void *sArg, *phRet;
 
-  np->tf->esp = (uint)stack + PGSIZE - sizeof(void*);
+  phRet = stack + 4096 - 2 * sizeof(void*);
+  *(uint*)phRet = 0x00000000; // A placeholder return address, not used since threads call texit instead of returning somewhere
+
+  sArg = stack + 4096 - sizeof(void*);
+  *(uint*)sArg = (uint)arg;   // Place arg on the stack 
+
+  np->tf->esp = (int) stack;
+  memmove((void*)np->tf->esp, stack, PGSIZE);
+  np->tf->esp += PGSIZE - 2*sizeof(void*);
   np->tf->ebp = np->tf->esp;
   np->tf->eip = (uint) func;
-
-  // Clear %eax so that fork returns 0 in the child.
-  np->tf->eax = 0;
 
   for(i = 0; i < NOFILE; i++)
     if(proc->ofile[i])
@@ -534,11 +538,107 @@ join(int pid, void **stack, void **retval)
           if found, but not zombie, sleep on found process?
   */
 
+  struct proc *p;
+  int foundthread;
+
+  //cprintf("joining on pid %d\n", pid);
+
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for process with specified pid, if we find it and it is a zombie, do cleanup, otherwise sleep (wakeup is called from texit)
+    foundthread = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->pid != pid)
+        continue;
+      foundthread = 1;
+      //cprintf("must have found the thread, p->pid should be 4: %d, p: %p\n", (uint)p->pid, p);
+      p->joiningThread = proc;
+      if(p->state == ZOMBIE){
+        //cprintf("p->state == ZOMBIE\n");
+        kfree(p->kstack);
+        p->kstack = 0;
+        //freevm(p->pgdir); // Using same pgdir -> can't free it (took way too long to catch this >.>)
+        p->state = UNUSED;
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        *stack = p->stack;
+        *retval = p->retval;
+        release(&ptable.lock);
+        //cprintf("join about to return 0\n");
+        return 0;
+      }
+    }
+
+    // No point waiting if we didn't find the thread
+    if(!foundthread || proc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // If we get to this point we must have found the specified thread, but must wait for it to finish 
+    // This means we must sleep, and store proc as the joining thread in p (in order to wake it up when texit is called)
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    // Sleep on ourself, thread we are waiting for knows our ID to call wakeup later (needed in case the thread that is joining is not the parent of the thread)
+
+    //cprintf("about to sleep on %p, p->joiningThread is: %p, p is : %p, p->pid is: %d\n", proc, p->joiningThread, p, p->pid);
+    //cprintf("in join: proc = %p\n", proc);
+
+    sleep(proc, &ptable.lock);  //DOC: wait-sleep
+  }
+
+
   return 0;
 }
 
 void
 texit(void *retval)
 {
-  
+  struct proc *p;
+  int fd;
+
+  //cprintf("inside texit, proc->pid = %d, proc->joiningThread = %p\n", proc->pid, proc->joiningThread);
+
+  if(proc == initproc)
+    panic("init exiting");
+
+  // Close all open files.
+  for(fd = 0; fd < NOFILE; fd++){
+    if(proc->ofile[fd]){
+      fileclose(proc->ofile[fd]);
+      proc->ofile[fd] = 0;
+    }
+  }
+
+  begin_op();
+  iput(proc->cwd);
+  end_op();
+  proc->cwd = 0;
+
+  acquire(&ptable.lock);
+
+  // Parent might be sleeping in join().
+  wakeup1(proc->joiningThread);
+
+  //cprintf("waking up processes sleeping on %p, current proc is: %p\n", proc->joiningThread, proc);
+
+  // Pass abandoned children to init.
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->parent == proc){
+      p->parent = initproc;
+      if(p->state == ZOMBIE)
+        wakeup1(initproc);
+    }
+  }
+
+  // Jump into the scheduler, never to return.
+  proc->state = ZOMBIE;
+  proc->retval = retval;
+
+  //cprintf("about to sched() in texit\n");
+
+  sched();
+  panic("zombie exit");
 }

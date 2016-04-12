@@ -115,6 +115,8 @@ sys_clone(void)
   if(argptr(1, (void*)&arg, sizeof(void*)) < 0)
     return -1;
 
+  cprintf("arg: %d\n", *(int*)arg);
+
   if(argptr(2, (void*)&stack, sizeof(void*)) < 0)
     return -1;
 
@@ -124,7 +126,20 @@ sys_clone(void)
 int
 sys_join(void)
 {
-  return 0;
+
+  int pid;
+  void *stack, *retval;
+
+  if(argint(0, &pid) < 0)
+    return -1;
+
+  if(argptr(1, (void*)&stack, sizeof(void*)) < 0)
+    return -1;
+
+  if(argptr(2, (void*)&retval, sizeof(void*)) < 0)
+    return -1;
+
+  return join(pid, (void**)stack, (void**)retval);
 }
 
 void

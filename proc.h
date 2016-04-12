@@ -70,6 +70,7 @@ struct proc {
   void* stack;                 // We need to pass this back to the thread that uses join
   void* retval;                // Also needs to be passed back, is set when a thread calls texit
   int isThread;                // Can be used to determine if the calling process is a true process or a kernel thread
+  struct proc *joiningThread;  // The process/thread that is joining on the current thread, used to wakeup when a thread calls texit
 
 };
 
