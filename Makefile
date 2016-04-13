@@ -52,6 +52,10 @@ endif
 
 # If the makefile can't find QEMU, specify its path here
 # QEMU = /ilab/users/wkatsak/qemu-1.7.0/i386-softmmu/qemu-system-i386 
+# <<<<<<< HEAD
+# =======
+# QEMU = qemu-system-i386 
+# >>>>>>> gary/sp16-hw2
 
 # Try to infer the correct QEMU
 ifndef QEMU
@@ -174,7 +178,7 @@ UPROGS=\
 	_zombie\
 	_shutdown\
 	_test_clone\
-#	_test_pthread\
+	_test_pthread\
 #	_test_mutex\
 
 fs.img: mkfs README $(UPROGS)

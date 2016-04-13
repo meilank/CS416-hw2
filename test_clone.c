@@ -9,11 +9,15 @@
 
 void *thread(void *arg)
 {
+
 	int i;
 	int counter;
 
+	//printf(1, "inside function\n");
+
 	sleep(10);
 	printf(1, "thread %d: started...\n", *(int*)arg);
+	//printf(1, "thread %d: started...\n", 1);
 
 	for (i=0; i<TARGET_COUNT_PER_THREAD; i++) {
 		sleep(0);
@@ -21,7 +25,9 @@ void *thread(void *arg)
 		sleep(0);
 	}
 
+	//printf(1, "about to call texit\n");
 	texit(arg);
+	//texit((void*)1);
 }
 
 int main(int argc, char **argv)

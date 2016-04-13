@@ -464,18 +464,8 @@ procdump(void)
   }
 }
 
-/*
-clone(...) - This system call should behave as a lightweight version of fork(...). 
-In particular, the system call should create a new OS process (struct proc) that has 
-its own kernel stack and other structures, but shares the memory address space of 
-the parent. When a user calls clone(...), they should provide a function for the thread
-to run, a single pointer to an argument, as well as a one-page region of memory to be 
-used as a user stack. The clone(...) call should return the PID of the new thread to 
-the parent, and immediately start execution of the function func in the new thread’s context.
 
-int clone(void *(*func) (void *), void *arg, void *stack);
-*/
-
+//similar to fork, except shares memory space of the parent, provided function goes into context of the new thread
 int
 clone(void *(*func) (void*), void *arg, void *stack)
 {
@@ -487,25 +477,26 @@ clone(void *(*func) (void*), void *arg, void *stack)
   if((np = allocproc()) == 0)
     return -1;
 
-  np->pgdir = proc->pgdir;  //we need the same pgdir, not a copy that fork would make
+  np->pgdir = proc->pgdir;  // We need the same pgdir, not a copy (fork makes a copy)
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
 
-  uint* sarg;
+  // Stack addresses grow down, so we need to move the stack pointer to the other end, as well as leave room for our argument and placeholder return address
 
-  sarg = stack + 4096 - sizeof(void*);
-  *(uint*)sarg = (uint)arg;
+  void *sArg, *phRet;
 
-  np->tf->esp = (uint)stack + PGSIZE - sizeof(void*);
+  phRet = stack + 4096 - 2 * sizeof(void*);
+  *(uint*)phRet = 0x00000000; // A placeholder return address, not used since threads call texit instead of returning somewhere
+
+  sArg = stack + 4096 - sizeof(void*);
+  *(uint*)sArg = (uint)arg;   // Place arg on the stack 
+
+  np->tf->esp = (int) stack;
+  memmove((void*)np->tf->esp, stack, PGSIZE);
+  np->tf->esp += PGSIZE - 2*sizeof(void*);
   np->tf->ebp = np->tf->esp;
-  *((uint*)(proc->tf->esp-4)) = (uint)sarg;
   np->tf->eip = (uint) func;
-  *((uint*)(proc->tf->esp-8))= np->tf->eip;
-  //proc->tf->esp-= 4;
-
-  // Clear %eax so that fork returns 0 in the child.
-  np->tf->eax = 0;
 
   for(i = 0; i < NOFILE; i++)
     if(proc->ofile[i])
@@ -524,59 +515,123 @@ clone(void *(*func) (void*), void *arg, void *stack)
   release(&ptable.lock);
   
   return pid;
-
-  //return 0;
 }
 
-/*
-join(...) - This system call should behave similar to wait(), and cause the caller to 
-sleep until the thread specified by the pid argument terminates. join(...) should return 0
-on success (negative number if an error), as well as copy the address of the thread’s user
-stack and the return value (passed to texit(...)) into the pointers provided as parameters.
-*/
-
-int 
+int
 join(int pid, void **stack, void **retval)
 {
+
   struct proc *p;
-  proc-> state= SLEEPING;
+  int foundthread;
 
   acquire(&ptable.lock);
-  for(;;)
-  {
-    // Scan through table looking for zombie children.
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    {
-      if(p->parent != proc)
+  for(;;){
+    // Scan through table looking for process with specified pid, if we find it and it is a zombie, do cleanup, otherwise sleep (wakeup is called from texit)
+    foundthread = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->pid != pid)
         continue;
-      if (p-> parent == proc)
-      {
-        p->state= RUNNABLE;
+      foundthread = 1;
+      p->joiningThread = proc;
+      if(p->state == ZOMBIE){
+        kfree(p->kstack);
+        p->kstack = 0;
+        //freevm(p->pgdir); // Using same pgdir -> can't free it (took way too long to catch this >.>)
+        p->state = UNUSED;
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        *stack = p->stack;
+        *retval = p->retval;
+        release(&ptable.lock);
         return 0;
       }
     }
+
+    // No point waiting if we didn't find the thread
+    if(!foundthread || proc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // If we get to this point we must have found the specified thread, but must wait for it to finish 
+    // This means we must sleep, and store proc as the joining thread in p (in order to wake it up when texit is called)
+
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    // Sleep on ourself, thread we are waiting for knows our ID to call wakeup later (needed in case the thread that is joining is not the parent of the thread)
+
     sleep(proc, &ptable.lock);  //DOC: wait-sleep
   }
+
+
   return 0;
 }
 
-//This system call should behave similar to exit(), but takes a pointer that should be passed to the caller of join(...).
-void 
+void
 texit(void *retval)
 {
-  proc-> parent-> state= RUNNABLE;
-  return;
+  struct proc *p;
+  int fd;
+
+  if(proc == initproc)
+    panic("init exiting");
+
+  // Close all open files.
+  for(fd = 0; fd < NOFILE; fd++){
+    if(proc->ofile[fd]){
+      fileclose(proc->ofile[fd]);
+      proc->ofile[fd] = 0;
+    }
+  }
+
+  begin_op();
+  iput(proc->cwd);
+  end_op();
+  proc->cwd = 0;
+
+  acquire(&ptable.lock);
+
+  // Parent might be sleeping in join().
+  wakeup1(proc->joiningThread);
+
+  // Pass abandoned children to init.
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->parent == proc){
+      p->parent = initproc;
+      if(p->state == ZOMBIE)
+        wakeup1(initproc);
+    }
+  }
+
+  // Jump into the scheduler, never to return.
+  //free(proc->stack);
+  proc->state = ZOMBIE;
+  proc->retval = retval;
+
+  sched();
+  panic("zombie exit");
 }
 
-// Process memory is laid out contiguously, low addresses first:
-//   text
-//   original data and bss
-//   fixed-size stack
-//   expandable heap
+int mutex_init(void)
+{
+  return 0;
+}
 
+int 
+mutex_destroy(int mutex_id)
+{
+  return 0;
+}
 
+int
+mutex_lock(int mutex_id)
+{
+  return 0;
+}
 
-
-
-
+int
+mutex_unlock(int mutex_id)
+{
+  return 0;
+}

@@ -7,39 +7,6 @@
 #include "mmu.h"
 #include "proc.h"
 
-int 
-sys_clone (void)
-{
-  //int clone(void *(*func) (void *), void *arg, void *stack);
-  int func;
-  int stack;
-  int arg;
-
-  if(argint(0, &func) < 0)
-    return -1;
-
-  if(argint(1, &arg) < 0)
-    return -1;
-
-  if(argint(2, &stack) < 0)
-    return -1;
-
-  //located in proc.c
-  return clone((void *)func, (void *) arg, (void *) stack);
-}
-
-int 
-sys_join(void)
-{
-  return 0;
-}
-
-void
-sys_texit(void)
-{
-
-}
-
 int
 sys_fork(void)
 {
@@ -133,5 +100,80 @@ sys_halt(void)
   char *p = "Shutdown";
   for( ; *p; p++)
     outw(0xB004, 0x2000);
+  return 0;
+}
+
+
+int
+sys_clone(void)
+{
+  void *func, *arg, *stack;
+
+  if(argptr(0, (void*)&func, sizeof(void*)) < 0)
+    return -1;
+
+  if(argptr(1, (void*)&arg, sizeof(void*)) < 0)
+    return -1;
+
+  cprintf("arg: %d\n", *(int*)arg);
+
+  if(argptr(2, (void*)&stack, sizeof(void*)) < 0)
+    return -1;
+
+  return clone(func, arg, stack);
+}
+
+int
+sys_join(void)
+{
+
+  int pid;
+  void *stack, *retval;
+
+  if(argint(0, &pid) < 0)
+    return -1;
+
+  if(argptr(1, (void*)&stack, sizeof(void*)) < 0)
+    return -1;
+
+  if(argptr(2, (void*)&retval, sizeof(void*)) < 0)
+    return -1;
+
+  return join(pid, (void**)stack, (void**)retval);
+}
+
+void
+sys_texit(void)
+{
+  void *retval;
+
+  if(argptr(0, (void*)&retval, sizeof(void*)) < 0)
+    return;
+
+  texit(retval);
+
+}
+
+int
+sys_mutex_init(void)
+{
+  return 0;
+}
+
+int
+sys_mutex_destroy(void)
+{
+  return 0;
+}
+
+int 
+sys_mutex_lock(void)
+{
+  return 0;
+}
+
+int
+sys_mutex_unlock(void)
+{
   return 0;
 }
