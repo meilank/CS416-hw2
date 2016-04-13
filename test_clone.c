@@ -75,7 +75,9 @@ int main(int argc, char **argv)
 		if (*(int*)retval != i) {
 			passed = 0;
 		}
-		printf(1, "main: thread %d joined...retval=%d\n", i, *(int*)retval);
+//		printf(1, "main: thread %d joined...retval=%d\n", i, *(int*)retval);
+		printf(1, "main: thread %d joined...retval=%d\n", pids[i], *(int*)retval);
+
 	}
 
 	if (passed) {

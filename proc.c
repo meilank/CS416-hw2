@@ -499,7 +499,10 @@ clone(void *(*func) (void*), void *arg, void *stack)
 
   np->tf->esp = (uint)stack + PGSIZE - sizeof(void*);
   np->tf->ebp = np->tf->esp;
+  *((uint*)(proc->tf->esp-4)) = (uint)sarg;
   np->tf->eip = (uint) func;
+  *((uint*)(proc->tf->esp-8))= np->tf->eip;
+  //proc->tf->esp-= 4;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -536,43 +539,22 @@ int
 join(int pid, void **stack, void **retval)
 {
   struct proc *p;
-  int havekids;
+  proc-> state= SLEEPING;
 
   acquire(&ptable.lock);
   for(;;)
   {
     // Scan through table looking for zombie children.
-    havekids = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     {
       if(p->parent != proc)
         continue;
-      havekids = 1;
-      if(p->state == ZOMBIE)
+      if (p-> parent == proc)
       {
-        // Found one.
-        pid = p->pid;
-        kfree(p->kstack);
-        p->kstack = 0;
-        freevm(p->pgdir);
-        p->state = UNUSED;
-        p->pid = 0;
-        p->parent = 0;
-        p->name[0] = 0;
-        p->killed = 0;
-        release(&ptable.lock);
+        p->state= RUNNABLE;
         return 0;
       }
-      if (p-> parent == proc)
-        return 0;
     }
-
-    // No point waiting if we don't have any children.
-    if(!havekids || proc->killed){
-      release(&ptable.lock);
-      return -1;
-    }
-
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(proc, &ptable.lock);  //DOC: wait-sleep
   }
@@ -584,7 +566,6 @@ void
 texit(void *retval)
 {
   proc-> parent-> state= RUNNABLE;
-  proc-> state= ZOMBIE;
   return;
 }
 
