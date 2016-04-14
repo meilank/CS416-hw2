@@ -73,6 +73,7 @@ struct proc {
   void* retval;                // Also needs to be passed back, is set when a thread calls texit
   int isThread;                // Can be used to determine if the calling process is a true process or a kernel thread
   struct proc *joiningThread;  // The process/thread that is joining on the current thread, used to wakeup when a thread calls texit
+  pthread_mutex_t mutex_table[32];
 };
 
 // Process memory is laid out contiguously, low addresses first:

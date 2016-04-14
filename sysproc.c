@@ -151,7 +151,6 @@ sys_texit(void)
     return;
 
   texit(retval);
-
 }
 
 int

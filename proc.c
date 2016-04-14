@@ -613,7 +613,8 @@ texit(void *retval)
   panic("zombie exit");
 }
 
-int mutex_init(void)
+int 
+mutex_init(void)
 {
   return 0;
 }

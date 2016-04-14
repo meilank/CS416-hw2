@@ -7,7 +7,6 @@
 
 // Implement your pthreads library here.
 
-
 int 
 pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void*), void *arg)
 {
@@ -32,4 +31,28 @@ pthread_exit(void *retval)
 {
 	texit(retval);
 	return 0;
+}
+
+int
+pthread_mutex_init(void)
+{
+	return mutex_init();
+}
+
+int
+pthread_mutex_destroy(int mutex_id)
+{
+	return mutex_destroy(mutex_id);
+}
+
+int 
+pthread_mutex_lock(int mutex_id)
+{
+	return mutex_lock(mutex_id);
+}
+
+int
+pthread_mutex_unlock(int mutex_id)
+{
+	return mutex_lock(mutex_id);
 }
