@@ -1,7 +1,9 @@
-#include "pthread.h"
+#include "spinlock.h"
 
 // Segments in proc->gdt.
 #define NSEGS     7
+// Number of mutexes per process
+#define NUM_MUTEXES 32
 
 // Per-CPU state
 struct cpu {
@@ -53,6 +55,13 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+typedef struct {
+  int id;
+  int initialized;
+  uint locked;
+  struct spinlock lk;
+} pthread_mutex_t;
+
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
@@ -73,7 +82,10 @@ struct proc {
   void* retval;                // Also needs to be passed back, is set when a thread calls texit
   int isThread;                // Can be used to determine if the calling process is a true process or a kernel thread
   struct proc *joiningThread;  // The process/thread that is joining on the current thread, used to wakeup when a thread calls texit
-  pthread_mutex_t mutex_table[32];
+  pthread_mutex_t mutexTable[NUM_MUTEXES];  // The table of mutexes to be used by the process
+  pthread_mutex_t *mutexes;    // The address of the mutex table, must be passed to all created threads when clone is called
+  struct spinlock lock;       
+
 };
 
 // Process memory is laid out contiguously, low addresses first:

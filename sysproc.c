@@ -156,23 +156,32 @@ sys_texit(void)
 int
 sys_mutex_init(void)
 {
-  return 0;
+  return mutex_init();
 }
 
 int
 sys_mutex_destroy(void)
 {
-  return 0;
+  int mutex_id;
+  if(argint(0, &mutex_id) < 0)
+    return -1;
+  return mutex_destroy(mutex_id);
 }
 
 int 
 sys_mutex_lock(void)
 {
-  return 0;
+  int mutex_id;
+  if(argint(0, &mutex_id) < 0)
+    return -1;
+  return mutex_lock(mutex_id);
 }
 
 int
 sys_mutex_unlock(void)
 {
-  return 0;
+  int mutex_id;
+  if(argint(0, &mutex_id) < 0)
+    return -1;
+  return mutex_unlock(mutex_id);
 }

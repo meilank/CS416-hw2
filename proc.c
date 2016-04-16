@@ -70,6 +70,20 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  // Initialize the mutex table
+  int i = 0;
+  for (; i < NUM_MUTEXES; i++)
+  {
+    p->mutexTable[i].id = i;
+    p->mutexTable[i].initialized = 0;
+    p->mutexTable[i].locked = 0;
+    initlock(&p->mutexTable[i].lk, (char*) i);
+  }
+
+  p->mutexes = p->mutexTable;
+
+  //cprintf("in allocproc, mutex table location is: %p\n", p->mutexes);
+
   return p;
 }
 
@@ -508,11 +522,14 @@ clone(void *(*func) (void*), void *arg, void *stack)
   np->stack = stack;
   np->isThread = 1;
   pid = np->pid;
+  np->mutexes = proc->mutexTable;
 
   // lock to force the compiler to emit the np->state write last.
   acquire(&ptable.lock);
   np->state = RUNNABLE;
   release(&ptable.lock);
+
+  //cprintf("in clone, mutex table location is: %p\n", np->mutexes);
   
   return pid;
 }
@@ -544,6 +561,7 @@ join(int pid, void **stack, void **retval)
         p->killed = 0;
         *stack = p->stack;
         *retval = p->retval;
+        //freevm(p->stack);
         release(&ptable.lock);
         return 0;
       }
@@ -616,23 +634,59 @@ texit(void *retval)
 int 
 mutex_init(void)
 {
-  return 0;
+  int i;
+  for (i=0; i<NUM_MUTEXES; i++)
+  {
+    if (proc->mutexes[i].initialized == 0)
+    {
+      proc->mutexes[i].initialized = 1;
+      cprintf("returning mutex number %d\n", proc->mutexes[i].id);
+      return proc->mutexes[i].id;
+    }
+  }
+  return -1;
 }
 
 int 
 mutex_destroy(int mutex_id)
 {
+  if (mutex_id > NUM_MUTEXES)
+  {
+    return -1;
+  }
+
+  proc->mutexes[mutex_id].initialized = 0;
   return 0;
 }
 
 int
 mutex_lock(int mutex_id)
 {
+
+  if (mutex_id > NUM_MUTEXES)
+  {
+    return -1;
+  }
+
+  while(xchg(&proc->mutexes[mutex_id].locked, 1) != 0)
+  {
+    acquire(&ptable.lock);
+    sleep(&proc->mutexes[mutex_id], &ptable.lock);
+    release(&ptable.lock);
+  }
   return 0;
 }
 
 int
 mutex_unlock(int mutex_id)
 {
+  
+  if (mutex_id > NUM_MUTEXES)
+  {
+    return -1;
+  }
+
+  proc->mutexes[mutex_id].locked = 0;
+  wakeup(&proc->mutexes[mutex_id]);
   return 0;
 }
