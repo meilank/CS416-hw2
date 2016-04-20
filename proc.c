@@ -77,7 +77,7 @@ found:
     p->mutexTable[i].id = i;
     p->mutexTable[i].initialized = 0;
     p->mutexTable[i].locked = 0;
-    initlock(&p->mutexTable[i].lk, (char*) i);
+    //initlock(&p->mutexTable[i].lk, (char*) i);
   }
 
   p->mutexes = p->mutexTable;
@@ -311,7 +311,7 @@ scheduler(void)
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state.
-void
+void 
 sched(void)
 {
   int intena;
@@ -528,8 +528,6 @@ clone(void *(*func) (void*), void *arg, void *stack)
   acquire(&ptable.lock);
   np->state = RUNNABLE;
   release(&ptable.lock);
-
-  //cprintf("in clone, mutex table location is: %p\n", np->mutexes);
   
   return pid;
 }
@@ -542,18 +540,20 @@ join(int pid, void **stack, void **retval)
   int foundthread;
 
   acquire(&ptable.lock);
-  for(;;){
+  for(;;)
+  {
     // Scan through table looking for process with specified pid, if we find it and it is a zombie, do cleanup, otherwise sleep (wakeup is called from texit)
     foundthread = 0;
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    {
       if(p->pid != pid)
         continue;
       foundthread = 1;
       p->joiningThread = proc;
-      if(p->state == ZOMBIE){
+      if(p->state == ZOMBIE)
+      {
         kfree(p->kstack);
         p->kstack = 0;
-        //freevm(p->pgdir); // Using same pgdir -> can't free it (took way too long to catch this >.>)
         p->state = UNUSED;
         p->pid = 0;
         p->parent = 0;
@@ -561,28 +561,23 @@ join(int pid, void **stack, void **retval)
         p->killed = 0;
         *stack = p->stack;
         *retval = p->retval;
-        //freevm(p->stack);
         release(&ptable.lock);
         return 0;
       }
     }
-
     // No point waiting if we didn't find the thread
-    if(!foundthread || proc->killed){
+    if(!foundthread || proc->killed)
+    {
       release(&ptable.lock);
       return -1;
     }
-
     // If we get to this point we must have found the specified thread, but must wait for it to finish 
     // This means we must sleep, and store proc as the joining thread in p (in order to wake it up when texit is called)
 
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     // Sleep on ourself, thread we are waiting for knows our ID to call wakeup later (needed in case the thread that is joining is not the parent of the thread)
-
     sleep(proc, &ptable.lock);  //DOC: wait-sleep
   }
-
-
   return 0;
 }
 
@@ -596,8 +591,10 @@ texit(void *retval)
     panic("init exiting");
 
   // Close all open files.
-  for(fd = 0; fd < NOFILE; fd++){
-    if(proc->ofile[fd]){
+  for(fd = 0; fd < NOFILE; fd++)
+  {
+    if(proc->ofile[fd])
+    {
       fileclose(proc->ofile[fd]);
       proc->ofile[fd] = 0;
     }
@@ -614,8 +611,10 @@ texit(void *retval)
   wakeup1(proc->joiningThread);
 
   // Pass abandoned children to init.
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->parent == proc){
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+  {
+    if(p->parent == proc)
+    {
       p->parent = initproc;
       if(p->state == ZOMBIE)
         wakeup1(initproc);

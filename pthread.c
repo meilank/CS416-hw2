@@ -23,9 +23,15 @@ pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_rout
 int
 pthread_join(pthread_t thread, void **retval)
 {
-	void **stack = (void**) malloc(sizeof(void*));
+	int ret = join(thread.pid, (void*)&thread.stack, retval);
 
-	return join(thread.pid, stack, retval);
+	if (ret < 0)
+	{
+		return -1;
+	}
+
+	free(thread.stack);
+	return ret;
 }
 
 int

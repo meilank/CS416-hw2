@@ -1,5 +1,3 @@
-#include "spinlock.h"
-
 #ifndef XV6_PTHREAD
 #define XV6_PTHREAD
 

@@ -1,5 +1,3 @@
-#include "spinlock.h"
-
 // Segments in proc->gdt.
 #define NSEGS     7
 // Number of mutexes per process
@@ -59,8 +57,7 @@ typedef struct {
   int id;
   int initialized;
   uint locked;
-  struct spinlock lk;
-} pthread_mutex_t;
+} pthread_mutex_t; 
 
 // Per-process state
 struct proc {
@@ -83,8 +80,7 @@ struct proc {
   int isThread;                // Can be used to determine if the calling process is a true process or a kernel thread
   struct proc *joiningThread;  // The process/thread that is joining on the current thread, used to wakeup when a thread calls texit
   pthread_mutex_t mutexTable[NUM_MUTEXES];  // The table of mutexes to be used by the process
-  pthread_mutex_t *mutexes;    // The address of the mutex table, must be passed to all created threads when clone is called
-  struct spinlock lock;       
+  pthread_mutex_t *mutexes;    // The address of the mutex table, must be passed to all created threads when clone is called      
 
 };
 

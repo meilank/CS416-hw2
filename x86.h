@@ -155,7 +155,7 @@ struct trapframe {
   uint oesp;      // useless & ignored
   uint ebx;
   uint edx;
-  uint ecx;
+  uint ecx; 
   uint eax;
 
   // rest of trap frame
